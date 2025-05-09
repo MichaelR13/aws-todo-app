@@ -3,12 +3,12 @@ frontend:
   phases:
     build:
       commands:
-        - npm install  # Install dependencies
-        - npm run build # Build the React application
+        - npm install
+        - npm run build
   artifacts:
-    baseDirectory: build # The directory where the built files are placed
+    baseDirectory: build
     files:
       - '**/*'
   cache:
     paths:
-      - 'node_modules/**/*' # Cache your node_modules directory
+      - 'node_modules/**/*'
