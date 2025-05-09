@@ -3,8 +3,13 @@ frontend:
   phases:
     build:
       commands:
-        - echo "Running a test build command"
-artifacts:
-  baseDirectory: /
-  files:
-    - '**/*'
+        - cd todo-frontend
+        - npm install
+        - npm run build
+  artifacts:
+    baseDirectory: todo-frontend/build
+    files:
+      - '**/*'
+  cache:
+    paths:
+      - 'todo-frontend/node_modules/**/*'
