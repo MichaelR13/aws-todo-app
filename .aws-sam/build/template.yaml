@@ -1,0 +1,134 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Serverless To-Do List Application
+Parameters:
+  Stage:
+    Type: String
+    Default: dev
+    Description: Deployment stage (e.g., dev, prod)
+Resources:
+  TodosTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName:
+        Fn::Sub: todos-${Stage}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+      - AttributeName: id
+        AttributeType: S
+      KeySchema:
+      - AttributeName: id
+        KeyType: HASH
+  GetTodosFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: GetTodosFunction
+      Handler: getTodos.handler
+      Runtime: nodejs20.x
+      Architectures:
+      - x86_64
+      MemorySize: 128
+      Timeout: 10
+      Environment:
+        Variables:
+          TODOS_TABLE:
+            Ref: TodosTable
+      Policies:
+      - DynamoDBReadPolicy:
+          TableName:
+            Ref: TodosTable
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /todos
+            Method: get
+    Metadata:
+      SamResourceId: GetTodosFunction
+  CreateTodoFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: CreateTodoFunction
+      Handler: createTodo.handler
+      Runtime: nodejs20.x
+      Architectures:
+      - x86_64
+      MemorySize: 128
+      Timeout: 10
+      Environment:
+        Variables:
+          TODOS_TABLE:
+            Ref: TodosTable
+      Policies:
+      - DynamoDBWritePolicy:
+          TableName:
+            Ref: TodosTable
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /todos
+            Method: post
+    Metadata:
+      SamResourceId: CreateTodoFunction
+  UpdateTodoFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: UpdateTodoFunction
+      Handler: updateTodo.handler
+      Runtime: nodejs20.x
+      Architectures:
+      - x86_64
+      MemorySize: 128
+      Timeout: 10
+      Environment:
+        Variables:
+          TODOS_TABLE:
+            Ref: TodosTable
+      Policies:
+      - DynamoDBCrudPolicy:
+          TableName:
+            Ref: TodosTable
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /todos/{id}
+            Method: put
+    Metadata:
+      SamResourceId: UpdateTodoFunction
+  DeleteTodoFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: DeleteTodoFunction
+      Handler: deleteTodo.handler
+      Runtime: nodejs20.x
+      Architectures:
+      - x86_64
+      MemorySize: 128
+      Timeout: 10
+      Environment:
+        Variables:
+          TODOS_TABLE:
+            Ref: TodosTable
+      Policies:
+      - DynamoDBCrudPolicy:
+          TableName:
+            Ref: TodosTable
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /todos/{id}
+            Method: delete
+    Metadata:
+      SamResourceId: DeleteTodoFunction
+Outputs:
+  ApiUrl:
+    Description: URL of the API Gateway
+    Value:
+      Fn::Sub: https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/${Stage}
+  TodosTableName:
+    Description: Name of the DynamoDB table
+    Value:
+      Ref: TodosTable

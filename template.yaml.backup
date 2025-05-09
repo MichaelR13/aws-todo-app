@@ -1,0 +1,125 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Serverless To-Do List Application
+
+Parameters:
+  Stage:
+    Type: String
+    Default: dev
+    Description: Deployment stage (e.g., dev, prod)
+
+Resources:
+  # DynamoDB Table
+  TodosTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub todos-${Stage}
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+
+  # Lambda Functions
+  GetTodosFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambda/
+      Handler: getTodos.handler
+      Runtime: nodejs14.x
+      Architectures:
+        - x86_64
+      MemorySize: 128
+      Timeout: 10
+      Environment:
+        Variables:
+          TODOS_TABLE: !Ref TodosTable
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref TodosTable
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /todos
+            Method: get
+
+  CreateTodoFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambda/
+      Handler: createTodo.handler
+      Runtime: nodejs14.x
+      Architectures:
+        - x86_64
+      MemorySize: 128
+      Timeout: 10
+      Environment:
+        Variables:
+          TODOS_TABLE: !Ref TodosTable
+      Policies:
+        - DynamoDBWritePolicy:
+            TableName: !Ref TodosTable
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /todos
+            Method: post
+
+  UpdateTodoFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambda/
+      Handler: updateTodo.handler
+      Runtime: nodejs14.x
+      Architectures:
+        - x86_64
+      MemorySize: 128
+      Timeout: 10
+      Environment:
+        Variables:
+          TODOS_TABLE: !Ref TodosTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref TodosTable
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /todos/{id}
+            Method: put
+
+  DeleteTodoFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambda/
+      Handler: deleteTodo.handler
+      Runtime: nodejs14.x
+      Architectures:
+        - x86_64
+      MemorySize: 128
+      Timeout: 10
+      Environment:
+        Variables:
+          TODOS_TABLE: !Ref TodosTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref TodosTable
+      Events:
+        ApiEvent:
+          Type: Api
+          Properties:
+            Path: /todos/{id}
+            Method: delete
+
+Outputs:
+  ApiUrl:
+    Description: URL of the API Gateway
+    Value: !Sub https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/${Stage}
+  
+  TodosTableName:
+    Description: Name of the DynamoDB table
+    Value: !Ref TodosTable
