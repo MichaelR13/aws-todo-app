@@ -1,0 +1,122 @@
+name: Deploy Serverless To-Do App
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  # Deploy Backend Resources (Lambda, API Gateway, DynamoDB)
+  deploy-backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: '14'
+      
+      - name: Install dependencies for Lambda functions
+        run: |
+          cd lambda
+          npm init -y
+          npm install aws-sdk uuid
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+      
+      - name: Set up SAM CLI
+        uses: aws-actions/setup-sam@v1
+      
+      - name: SAM Build
+        run: sam build
+      
+      - name: SAM Deploy
+        run: |
+          sam deploy \
+            --stack-name todo-app-stack \
+            --no-confirm-changeset \
+            --no-fail-on-empty-changeset \
+            --parameter-overrides Stage=dev
+      
+      - name: Export outputs
+        run: |
+          API_URL=$(aws cloudformation describe-stacks --stack-name todo-app-stack --query "Stacks[0].Outputs[?OutputKey=='ApiUrl'].OutputValue" --output text)
+          API_KEY_ID=$(aws cloudformation describe-stacks --stack-name todo-app-stack --query "Stacks[0].Outputs[?OutputKey=='ApiKeyId'].OutputValue" --output text)
+          API_KEY=$(aws apigateway get-api-key --api-key $API_KEY_ID --include-value --query "value" --output text)
+          
+          echo "API_URL=$API_URL" >> $GITHUB_ENV
+          echo "API_KEY=$API_KEY" >> $GITHUB_ENV
+      
+      - name: Upload backend deployment info
+        uses: actions/upload-artifact@v2
+        with:
+          name: backend-info
+          path: |
+            echo "API_URL=${{ env.API_URL }}" > backend-info.txt
+            echo "API_KEY=${{ env.API_KEY }}" >> backend-info.txt
+
+  # Deploy Frontend to Amplify
+  deploy-frontend:
+    needs: deploy-backend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      
+      - name: Set up Node.js
+        uses: actions/setup-node@v2
+        with:
+          node-version: '14'
+      
+      - name: Download backend deployment info
+        uses: actions/download-artifact@v2
+        with:
+          name: backend-info
+      
+      - name: Set backend info as environment variables
+        run: |
+          source backend-info.txt
+          echo "REACT_APP_API_URL=$API_URL" > .env
+          echo "REACT_APP_API_KEY=$API_KEY" >> .env
+      
+      - name: Install frontend dependencies
+        run: npm install
+      
+      - name: Build frontend
+        run: npm run build
+      
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+      
+      - name: Deploy to AWS Amplify
+        run: |
+          # Check if app exists
+          APP_ID=$(aws amplify list-apps --query "apps[?name=='todo-serverless-app'].appId" --output text)
+          
+          if [ -z "$APP_ID" ]; then
+            # Create new app
+            echo "Creating new Amplify app..."
+            RESULT=$(aws amplify create-app --name todo-serverless-app --platform WEB)
+            APP_ID=$(echo $RESULT | jq -r '.app.appId')
+            
+            # Create branch
+            aws amplify create-branch --app-id $APP_ID --branch-name main
+          fi
+          
+          # Create deployment
+          ZIP_FILE="frontend-build.zip"
+          cd build
+          zip -r ../$ZIP_FILE .
+          cd ..
+          
+          aws amplify start-deployment --app-id $APP_ID --branch-name main --source-url file://$ZIP_FILE
