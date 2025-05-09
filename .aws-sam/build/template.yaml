@@ -19,6 +19,14 @@ Resources:
       KeySchema:
       - AttributeName: id
         KeyType: HASH
+  TodosApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+      Cors:
+        AllowMethods: '''GET,POST,PUT,DELETE,OPTIONS'''
+        AllowHeaders: '''Content-Type,X-Api-Key,Authorization'''
+        AllowOrigin: '''*'''
   GetTodosFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -41,6 +49,8 @@ Resources:
         ApiEvent:
           Type: Api
           Properties:
+            RestApiId:
+              Ref: TodosApi
             Path: /todos
             Method: get
     Metadata:
@@ -67,6 +77,8 @@ Resources:
         ApiEvent:
           Type: Api
           Properties:
+            RestApiId:
+              Ref: TodosApi
             Path: /todos
             Method: post
     Metadata:
@@ -93,6 +105,8 @@ Resources:
         ApiEvent:
           Type: Api
           Properties:
+            RestApiId:
+              Ref: TodosApi
             Path: /todos/{id}
             Method: put
     Metadata:
@@ -119,15 +133,44 @@ Resources:
         ApiEvent:
           Type: Api
           Properties:
+            RestApiId:
+              Ref: TodosApi
             Path: /todos/{id}
             Method: delete
     Metadata:
       SamResourceId: DeleteTodoFunction
+  OptionsTodosFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: OptionsTodosFunction
+      Handler: optionsTodo.handler
+      Runtime: nodejs20.x
+      Architectures:
+      - x86_64
+      MemorySize: 128
+      Timeout: 10
+      Events:
+        ApiEventRoot:
+          Type: Api
+          Properties:
+            RestApiId:
+              Ref: TodosApi
+            Path: /todos
+            Method: options
+        ApiEventId:
+          Type: Api
+          Properties:
+            RestApiId:
+              Ref: TodosApi
+            Path: /todos/{id}
+            Method: options
+    Metadata:
+      SamResourceId: OptionsTodosFunction
 Outputs:
   ApiUrl:
     Description: URL of the API Gateway
     Value:
-      Fn::Sub: https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/${Stage}
+      Fn::Sub: https://${TodosApi}.execute-api.${AWS::Region}.amazonaws.com/Prod
   TodosTableName:
     Description: Name of the DynamoDB table
     Value:

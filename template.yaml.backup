@@ -22,13 +22,23 @@ Resources:
         - AttributeName: id
           KeyType: HASH
 
+  # API Gateway Definition
+  TodosApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+      Cors:
+        AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
+        AllowHeaders: "'Content-Type,X-Api-Key,Authorization'"
+        AllowOrigin: "'*'"
+
   # Lambda Functions
   GetTodosFunction:
     Type: AWS::Serverless::Function
     Properties:
       CodeUri: lambda/
       Handler: getTodos.handler
-      Runtime: nodejs14.x
+      Runtime: nodejs20.x
       Architectures:
         - x86_64
       MemorySize: 128
@@ -43,6 +53,7 @@ Resources:
         ApiEvent:
           Type: Api
           Properties:
+            RestApiId: !Ref TodosApi
             Path: /todos
             Method: get
 
@@ -51,7 +62,7 @@ Resources:
     Properties:
       CodeUri: lambda/
       Handler: createTodo.handler
-      Runtime: nodejs14.x
+      Runtime: nodejs20.x
       Architectures:
         - x86_64
       MemorySize: 128
@@ -66,6 +77,7 @@ Resources:
         ApiEvent:
           Type: Api
           Properties:
+            RestApiId: !Ref TodosApi
             Path: /todos
             Method: post
 
@@ -74,7 +86,7 @@ Resources:
     Properties:
       CodeUri: lambda/
       Handler: updateTodo.handler
-      Runtime: nodejs14.x
+      Runtime: nodejs20.x
       Architectures:
         - x86_64
       MemorySize: 128
@@ -89,6 +101,7 @@ Resources:
         ApiEvent:
           Type: Api
           Properties:
+            RestApiId: !Ref TodosApi
             Path: /todos/{id}
             Method: put
 
@@ -97,7 +110,7 @@ Resources:
     Properties:
       CodeUri: lambda/
       Handler: deleteTodo.handler
-      Runtime: nodejs14.x
+      Runtime: nodejs20.x
       Architectures:
         - x86_64
       MemorySize: 128
@@ -112,13 +125,92 @@ Resources:
         ApiEvent:
           Type: Api
           Properties:
+            RestApiId: !Ref TodosApi
             Path: /todos/{id}
             Method: delete
+
+  # New OPTIONS handler for CORS preflight requests
+  OptionsTodosFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambda/
+      Handler: optionsTodo.handler
+      Runtime: nodejs20.x
+      Architectures:
+        - x86_64
+      MemorySize: 128
+      Timeout: 10
+      Events:
+        # OPTIONS handler for /todos endpoint
+        ApiEventRoot:
+          Type: Api
+          Properties:
+            RestApiId: !Ref TodosApi
+            Path: /todos
+            Method: options
+        # OPTIONS handler for /todos/{id} endpoint
+        ApiEventId:
+          Type: Api
+          Properties:
+            RestApiId: !Ref TodosApi
+            Path: /todos/{id}
+            Method: options
+
+  # Web Application Firewall (WAF)
+  TodosWebACL:
+    Type: AWS::WAFv2::WebACL
+    Properties:
+      Name: !Sub TodosWebACL-${Stage}
+      Scope: REGIONAL
+      DefaultAction:
+        Allow: {}
+      VisibilityConfig:
+        CloudWatchMetricsEnabled: true
+        MetricName: !Sub TodosWebACL-${Stage}
+        SampledRequestsEnabled: true
+      Rules:
+        - Name: AWSManagedRulesCommonRuleSet
+          Priority: 0
+          OverrideAction:
+            None: {}
+          VisibilityConfig:
+            CloudWatchMetricsEnabled: true
+            MetricName: AWSManagedRulesCommonRuleSet
+            SampledRequestsEnabled: true
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesCommonRuleSet
+        - Name: RateLimit
+          Priority: 1
+          Action:
+            Block: {}
+          VisibilityConfig:
+            CloudWatchMetricsEnabled: true
+            MetricName: RateLimit
+            SampledRequestsEnabled: true
+          Statement:
+            RateBasedStatement:
+              Limit: 100
+              AggregateKeyType: IP
+
+  # Associate WAF with API Gateway Stage
+  WebACLAssociation:
+    Type: AWS::WAFv2::WebACLAssociation
+    Properties:
+      ResourceArn: !Sub arn:aws:apigateway:${AWS::Region}::/restapis/${TodosApi}/stages/Prod
+      WebACLArn: !GetAtt TodosWebACL.Arn
+    DependsOn:
+      - TodosApi
 
 Outputs:
   ApiUrl:
     Description: URL of the API Gateway
-    Value: !Sub https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/${Stage}
+    Value: !Sub https://${TodosApi}.execute-api.${AWS::Region}.amazonaws.com/Prod
+  
+  ApiKeyId:
+    Description: ID of the API Key (if you're using one)
+    Value: !Ref TodosApi
   
   TodosTableName:
     Description: Name of the DynamoDB table

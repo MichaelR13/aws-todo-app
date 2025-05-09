@@ -22,6 +22,16 @@ Resources:
         - AttributeName: id
           KeyType: HASH
 
+  # API Gateway Definition
+  TodosApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: Prod
+      Cors:
+        AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
+        AllowHeaders: "'Content-Type,X-Api-Key,Authorization'"
+        AllowOrigin: "'*'"
+
   # Lambda Functions
   GetTodosFunction:
     Type: AWS::Serverless::Function
@@ -43,6 +53,7 @@ Resources:
         ApiEvent:
           Type: Api
           Properties:
+            RestApiId: !Ref TodosApi
             Path: /todos
             Method: get
 
@@ -66,6 +77,7 @@ Resources:
         ApiEvent:
           Type: Api
           Properties:
+            RestApiId: !Ref TodosApi
             Path: /todos
             Method: post
 
@@ -89,6 +101,7 @@ Resources:
         ApiEvent:
           Type: Api
           Properties:
+            RestApiId: !Ref TodosApi
             Path: /todos/{id}
             Method: put
 
@@ -112,13 +125,41 @@ Resources:
         ApiEvent:
           Type: Api
           Properties:
+            RestApiId: !Ref TodosApi
             Path: /todos/{id}
             Method: delete
+
+  # OPTIONS handler for CORS preflight requests
+  OptionsTodosFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambda/
+      Handler: optionsTodo.handler
+      Runtime: nodejs20.x
+      Architectures:
+        - x86_64
+      MemorySize: 128
+      Timeout: 10
+      Events:
+        # OPTIONS handler for /todos endpoint
+        ApiEventRoot:
+          Type: Api
+          Properties:
+            RestApiId: !Ref TodosApi
+            Path: /todos
+            Method: options
+        # OPTIONS handler for /todos/{id} endpoint
+        ApiEventId:
+          Type: Api
+          Properties:
+            RestApiId: !Ref TodosApi
+            Path: /todos/{id}
+            Method: options
 
 Outputs:
   ApiUrl:
     Description: URL of the API Gateway
-    Value: !Sub https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/${Stage}
+    Value: !Sub https://${TodosApi}.execute-api.${AWS::Region}.amazonaws.com/Prod
   
   TodosTableName:
     Description: Name of the DynamoDB table

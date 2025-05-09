@@ -21,7 +21,8 @@ exports.handler = async (event) => {
       statusCode: 200,
       headers: {
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Credentials': true,
+        'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type,X-Api-Key,Authorization'
       },
       body: JSON.stringify({ message: 'Todo deleted successfully' })
     };
@@ -32,7 +33,8 @@ exports.handler = async (event) => {
       statusCode: 500,
       headers: {
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Credentials': true,
+        'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type,X-Api-Key,Authorization'
       },
       body: JSON.stringify({ message: 'Error deleting todo' })
     };
